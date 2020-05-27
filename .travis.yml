@@ -18,3 +18,15 @@ after_success:
     - docker push crberme/complex-server
     - docker push crberme/complex-nginx
     - docker push crberme/complex-worker
+
+deploy:
+    provider: elasticbeanstalk
+    region: "eu-west-3"
+    app: "complex-docker"
+    env: "ComplexDocker-env"
+    bucket_name: "elasticbeanstalk-eu-west-3-482110143293"
+    bucket_path: "complex-docker"
+    on:
+        branch: master
+    access_key_id: $AWS_ACCESS_KEY
+    secret_access_key: $AWS_SECRET_KEY
