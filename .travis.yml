@@ -1,32 +1,51 @@
 sudo: required
 services:
     - docker
+env:
+    global:
+        - SHA=$(git rev-parse HEAD)
+        - CLOUDSDK_CORE_DISABLE_PROMPTS=1
 
 before_install:
+    - curl https://sdk.cloud.google.com | bash > /dev/null
+    - source $HOME/google-cloud-sdk/path.bash.inc
+    - gcloud components update kubectl
+    - openssl aes-256-cbc -K $encrypted_91c0b1c37414_key -iv $encrypted_91c0b1c37414_iv -in multi-k8s-279015-271776472636.json.enc -out multi-k8s-279015-271776472636.json -d
+    - gcloud auth activate-service-account --key-file multi-k8s-279015-271776472636.json
+    - gcloud config set project multi-k8s-279015
+    - gcloud config set compute/zone europe-west2-a
+    - gcloud container clusters get-credentials complex-cluster
     - docker build -t crberme/react-test -f ./client/Dockerfile.dev ./client
 
 script:
     - docker run -e CI=true crberme/react-test npm test
 
 after_success:
-    - docker build -t crberme/complex-client ./client
-    - docker build -t crberme/complex-server ./server
+    - docker build -t crberme/complex-client:latest -t crberme/complex-client:$SHA ./client
+    - docker build -t crberme/complex-server:latest -t crberme/complex-server:"$SHA" ./server
     - docker build -t crberme/complex-nginx ./nginx
-    - docker build -t crberme/complex-worker ./worker
+    - docker build -t crberme/complex-worker:latest -t crberme/complex-worker:"$SHA" ./worker
     - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_ID" --password-stdin
-    - docker push crberme/complex-client
-    - docker push crberme/complex-server
+    - docker push crberme/complex-client:latest
+    - docker push crberme/complex-server:latest
     - docker push crberme/complex-nginx
-    - docker push crberme/complex-worker
+    - docker push crberme/complex-worker:latest
+    - docker push crberme/complex-client:$SHA
+    - docker push crberme/complex-server:$SHA
+    - docker push crberme/complex-worker:$SHA
 
 deploy:
-    provider: elasticbeanstalk
-    region: "eu-west-3"
-    app: "complex-docker"
-    env: "ComplexDocker-env"
-    bucket_name: "elasticbeanstalk-eu-west-3-482110143293"
-    bucket_path: "complex-docker"
-    on:
+    - provider: elasticbeanstalk
+      region: "eu-west-3"
+      app: "complex-docker"
+      env: "ComplexDocker-env"
+      bucket_name: "elasticbeanstalk-eu-west-3-482110143293"
+      bucket_path: "complex-docker"
+      on:
         branch: master
-    access_key_id: $AWS_ACCESS_KEY
-    secret_access_key: $AWS_SECRET_KEY
+      access_key_id: $AWS_ACCESS_KEY
+      secret_access_key: $AWS_SECRET_KEY
+    - provider: script
+      script: bash ./deploy.sh
+      on:
+        branch: kubernetes
